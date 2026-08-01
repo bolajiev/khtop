@@ -491,3 +491,167 @@ fn truncate(s: &str, max: usize) -> String {
         out
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::{App, TransferState};
+    use crate::client::models::*;
+    use crate::client::KhClient;
+    use ratatui::backend::TestBackend;
+    use std::sync::Arc;
+
+    fn fake_app() -> App {
+        let client = KhClient::with_base(Arc::new("kh_test".into()), "http://127.0.0.1:1".into());
+        let mut app = App::new(client);
+        app.runs = vec![
+            Run {
+                id: "direct_789".into(),
+                source: "direct".into(),
+                workflow_id: None,
+                workflow_name: None,
+                status: "completed".into(),
+                created_at: Some("2026-07-30T12:00:00Z".into()),
+                completed_at: None,
+                duration_ms: Some(15000),
+                r#type: Some("transfer".into()),
+                network: Some("ethereum".into()),
+                transaction_hash: Some(
+                    "0xca19a1f0c1d48e6d8a4c1f9d1f3d7a1c9f3b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8".into(),
+                ),
+                gas_used_wei: Some("21000000000000".into()),
+            },
+            Run {
+                id: "exec_123".into(),
+                source: "workflow".into(),
+                workflow_id: Some("wf_123".into()),
+                workflow_name: Some("Auto-compounder".into()),
+                status: "running".into(),
+                created_at: Some("2026-07-30T12:05:00Z".into()),
+                completed_at: None,
+                duration_ms: Some(4200),
+                r#type: None,
+                network: None,
+                transaction_hash: None,
+                gas_used_wei: None,
+            },
+        ];
+        app.selected_run = Some("exec_123".into());
+        app.workflows = vec![Workflow {
+            id: "wf_123".into(),
+            name: "Auto-compounder".into(),
+            description: None,
+            visibility: Some("private".into()),
+            nodes: serde_json::json!([{
+                "id": "trigger-1", "type": "trigger",
+                "data": {"label": "Schedule", "config": {"triggerType": "Schedule"}}
+            }]),
+            edges: serde_json::json!([]),
+            enabled: Some(true),
+            created_at: None,
+            updated_at: Some("2026-07-28T10:00:00Z".into()),
+        }];
+        app.logs = vec![crate::app::LogRow {
+            time: "07-30 12:05:01".into(),
+            node_name: "First transfer".into(),
+            node_type: "web3/transfer-funds".into(),
+            status: "success".into(),
+            gas_eth: Some("0.000002".into()),
+            tx_hash: Some(
+                "0xca19a1f0c1d48e6d8a4c1f9d1f3d7a1c9f3b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8".into(),
+            ),
+            tx_link: Some("https://sepolia.etherscan.io/tx/0xca19".into()),
+            message: None,
+        }];
+        app.summary = Some(AnalyticsSummary {
+            total_runs: 1250,
+            successful_runs: 1180,
+            failed_runs: 70,
+            success_rate: 94.4,
+            total_gas_used_wei: "15000000000000000".into(),
+            avg_execution_time_ms: 2340,
+        });
+        app.spend = Some(SpendCap {
+            daily_cap_wei: "100000000000000000".into(),
+            spent_today_wei: "25000000000000000".into(),
+            remaining_wei: "75000000000000000".into(),
+            percent_used: 25.0,
+        });
+        app.chains = vec![Chain {
+            id: "chain_1".into(),
+            chain_id: 1,
+            name: "Ethereum Mainnet".into(),
+            symbol: "ETH".into(),
+            chain_type: "evm".into(),
+            explorer_url: None,
+            explorer_address_path: None,
+            is_testnet: false,
+            is_enabled: true,
+            use_private_mempool_rpc: false,
+        }];
+        app
+    }
+
+    fn render(app: &App, mode: Mode) {
+        let mut app = fake_app();
+        app.mode = mode;
+        let backend = TestBackend::new(120, 40);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &app)).unwrap();
+    }
+
+    #[test]
+    fn renders_dashboard() {
+        let mut app = fake_app();
+        app.mode = Mode::Normal;
+        let backend = TestBackend::new(120, 40);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &app)).unwrap();
+    }
+
+    #[test]
+    fn renders_transfer_dialog_and_help() {
+        let mut app = fake_app();
+        app.transfer = Some(TransferState {
+            amount: "0.0001".into(),
+            sim: None,
+        });
+        app.mode = Mode::TransferAmount;
+        let backend = TestBackend::new(120, 40);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &app)).unwrap();
+        app.mode = Mode::Help;
+        terminal.draw(|f| draw(f, &app)).unwrap();
+    }
+
+    #[test]
+    fn renders_confirm_with_simulate() {
+        let mut app = fake_app();
+        app.transfer = Some(TransferState {
+            amount: "0.0001".into(),
+            sim: Some(crate::client::SimulateOutcome {
+                success: true,
+                would_revert: false,
+                gas_estimate: Some("65000".into()),
+                from: Some("0xorg".into()),
+                to: Some("0xtarget".into()),
+                value: Some("100000000000000".into()),
+                revert_reason: None,
+            }),
+        });
+        app.mode = Mode::TransferConfirm;
+        let backend = TestBackend::new(120, 40);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &app)).unwrap();
+    }
+
+    #[test]
+    fn renders_filter_mode() {
+        let mut app = fake_app();
+        app.mode = Mode::Filter;
+        app.filter = "running".into();
+        let backend = TestBackend::new(120, 40);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &app)).unwrap();
+    }
+}

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Workflow {
     pub id: String,
     pub name: String,
@@ -22,6 +23,7 @@ pub struct Workflow {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LogEntry {
     pub id: String,
     #[serde(default)]
@@ -52,6 +54,7 @@ pub struct LogEntry {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LogsResponse {
     #[serde(default)]
     pub execution: Option<Value>,
@@ -60,6 +63,7 @@ pub struct LogsResponse {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StepEntry {
     #[serde(default)]
     pub node_id: Option<String>,
@@ -77,6 +81,7 @@ pub struct StepEntry {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StepsResponse {
     #[serde(default)]
     pub steps: Vec<StepEntry>,
@@ -90,6 +95,7 @@ pub struct TransferRequest {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DirectStatus {
     pub execution_id: String,
     pub status: String,
@@ -112,6 +118,7 @@ pub struct DirectStatus {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AnalyticsSummary {
     pub total_runs: u64,
     #[serde(default)]
@@ -127,6 +134,7 @@ pub struct AnalyticsSummary {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Run {
     pub id: String,
     pub source: String,
@@ -152,6 +160,7 @@ pub struct Run {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RunsPage {
     #[serde(default)]
     pub runs: Vec<Run>,
@@ -160,6 +169,7 @@ pub struct RunsPage {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SpendCap {
     #[serde(default)]
     pub daily_cap_wei: String,
@@ -172,6 +182,7 @@ pub struct SpendCap {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Chain {
     pub id: String,
     pub chain_id: u64,
@@ -192,6 +203,7 @@ pub struct Chain {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowExecuteResponse {
     pub execution_id: String,
     pub status: String,

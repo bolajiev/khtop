@@ -1,14 +1,10 @@
-mod app;
-mod client;
-mod events;
-mod ui;
-mod util;
-
 use anyhow::Result;
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
+use khtop::app;
+use khtop::client;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io;

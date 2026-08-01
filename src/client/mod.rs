@@ -77,11 +77,16 @@ fn truncate(s: &str, n: usize) -> String {
 pub struct KhClient {
     inner: reqwest::Client,
     api_key: Arc<String>,
+    base: Arc<String>,
     rate_remaining: Arc<AtomicU32>,
 }
 
 impl KhClient {
     pub fn new(api_key: Arc<String>) -> Self {
+        Self::with_base(api_key, BASE_URL.to_string())
+    }
+
+    pub fn with_base(api_key: Arc<String>, base: String) -> Self {
         let inner = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(5))
             .timeout(std::time::Duration::from_secs(15))
@@ -91,6 +96,7 @@ impl KhClient {
         Self {
             inner,
             api_key,
+            base: Arc::new(base),
             rate_remaining: Arc::new(AtomicU32::new(0)),
         }
     }
@@ -109,10 +115,14 @@ impl KhClient {
         }
     }
 
+    fn url(&self, path: &str) -> String {
+        format!("{}{}", self.base, path)
+    }
+
     async fn get_json<T: DeserializeOwned>(&self, path: &str) -> Result<T, ApiError> {
         let resp = self
             .inner
-            .get(format!("{BASE_URL}{path}"))
+            .get(self.url(path))
             .bearer_auth(self.api_key.as_str())
             .send()
             .await
@@ -141,7 +151,7 @@ impl KhClient {
     ) -> Result<(u16, Value), ApiError> {
         let mut builder = self
             .inner
-            .post(format!("{BASE_URL}{path}"))
+            .post(self.url(path))
             .bearer_auth(self.api_key.as_str())
             .json(body);
         if let Some(k) = idempotency_key {
@@ -295,6 +305,7 @@ impl SimulateOutcome {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransferResponse {
     pub execution_id: String,
     pub status: String,
