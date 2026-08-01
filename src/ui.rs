@@ -592,14 +592,6 @@ mod tests {
         app
     }
 
-    fn render(app: &App, mode: Mode) {
-        let mut app = fake_app();
-        app.mode = mode;
-        let backend = TestBackend::new(120, 40);
-        let mut terminal = ratatui::Terminal::new(backend).unwrap();
-        terminal.draw(|f| draw(f, &app)).unwrap();
-    }
-
     #[test]
     fn renders_dashboard() {
         let mut app = fake_app();
