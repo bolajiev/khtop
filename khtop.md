@@ -36,8 +36,9 @@ Get an API key (`app.keeperhub.com` → Settings → API Keys) or run
 `kh auth login` locally. Fire one real transaction —
 `kh execute transfer` or the REST equivalent — on **Sepolia** first (free,
 no real funds at risk). Confirm you can see it land and pull its status/logs
-back via the API. Only once that loop works end to end, move to mainnet
-Ethereum for the final demo transaction (gas-sponsored by KeeperHub).
+back via the API. Only once that loop works end to end, the final demo
+transaction is also done on **Sepolia** (decision 2026-08-09: testnet-only,
+no mainnet funds).
 
 Do not start on the TUI layout until this loop is proven. A beautiful
 dashboard showing nothing real is worse than an ugly one showing a real

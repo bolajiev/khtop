@@ -98,7 +98,7 @@ DeFi bot that happens to fire one transaction through KeeperHub.
 | Interface shape | Standalone terminal dashboard (TUI) | The gap that isn't covered by their own plugin |
 | Language/stack | Rust + ratatui | Matches existing skillset, fast to ship a TUI solo |
 | Data source | KeeperHub REST API directly | Typed JSON, no dependency on `kh` binary being installed, more control than parsing CLI text output |
-| Chain for demo tx | Ethereum mainnet | KeeperHub sponsors gas there — removes cost blocker |
+| Chain for demo tx | Sepolia testnet only (decision 2026-08-09: no mainnet funds) | Real linkable transactions with zero funds at risk; KeeperHub sponsors gas on Sepolia |
 | Prize track | Grand Prize, own repo | UX bounty needs a merged PR into their repo — outside our control on this timeline |
 | Name | **khtop** | Immediately legible to anyone who's used `htop`/`k9s`/`btop` — signals the category instantly, short enough to type during a live demo |
 
