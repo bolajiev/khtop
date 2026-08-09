@@ -65,6 +65,20 @@ impl std::fmt::Display for ApiError {
 
 impl std::error::Error for ApiError {}
 
+/// True when the failure means this API key lacks permission for the endpoint
+/// (401 or a scope-flavoured code). Callers may degrade to fallback sources.
+pub fn is_scope_error(e: &ApiError) -> bool {
+    match e {
+        ApiError::Api { status, code, .. } => {
+            *status == 401
+                || code.to_lowercase().contains("scope")
+                || code.to_lowercase().contains("auth")
+        }
+        ApiError::Http { status: 401, .. } => true,
+        _ => false,
+    }
+}
+
 fn truncate(s: &str, n: usize) -> String {
     if s.chars().count() <= n {
         s.to_string()
@@ -195,6 +209,14 @@ impl KhClient {
         })
     }
 
+    pub async fn workflow_executions(
+        &self,
+        workflow_id: &str,
+    ) -> Result<Vec<WorkflowExecution>, ApiError> {
+        self.get_json(&format!("/workflows/{workflow_id}/executions"))
+            .await
+    }
+
     pub async fn execution_logs(&self, execution_id: &str) -> Result<LogsResponse, ApiError> {
         self.get_json(&format!("/workflows/executions/{execution_id}/logs"))
             .await
@@ -203,6 +225,38 @@ impl KhClient {
     pub async fn analytics_runs(&self, limit: u64) -> Result<RunsPage, ApiError> {
         self.get_json(&format!("/analytics/runs?limit={limit}"))
             .await
+    }
+
+    /// Fallback when the analytics endpoint is outside the key's scope:
+    /// aggregate per-workflow execution history instead.
+    pub async fn fallback_runs(&self) -> Vec<Run> {
+        let Ok(workflows) = self.list_workflows().await else {
+            return Vec::new();
+        };
+        let mut runs: Vec<Run> = Vec::new();
+        for wf in workflows.iter().take(10) {
+            let Ok(execs) = self.workflow_executions(&wf.id).await else {
+                continue;
+            };
+            for e in execs {
+                runs.push(Run {
+                    id: e.id,
+                    source: "workflow".into(),
+                    workflow_id: Some(wf.id.clone()),
+                    workflow_name: Some(wf.name.clone()),
+                    status: e.status,
+                    created_at: e.started_at,
+                    completed_at: e.completed_at,
+                    duration_ms: None,
+                    r#type: None,
+                    network: e.transaction_hashes.first().and_then(|t| t.network.clone()),
+                    transaction_hash: e.transaction_hashes.first().map(|t| t.hash.clone()),
+                    gas_used_wei: None,
+                });
+            }
+        }
+        runs.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        runs
     }
 
     pub async fn analytics_summary(&self) -> Result<AnalyticsSummary, ApiError> {

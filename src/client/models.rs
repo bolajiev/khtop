@@ -64,6 +64,37 @@ pub struct LogsResponse {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WorkflowExecution {
+    pub id: String,
+    #[serde(default)]
+    pub workflow_id: Option<String>,
+    pub status: String,
+    #[serde(default)]
+    pub input: Value,
+    #[serde(default)]
+    pub output: Value,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub completed_at: Option<String>,
+    #[serde(default)]
+    pub transaction_hashes: Vec<TxHashEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TxHashEntry {
+    pub hash: String,
+    #[serde(default)]
+    pub node_id: Option<String>,
+    #[serde(default)]
+    pub node_name: Option<String>,
+    #[serde(default)]
+    pub network: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StepEntry {
     #[serde(default)]
     pub node_id: Option<String>,

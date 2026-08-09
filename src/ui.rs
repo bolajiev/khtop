@@ -328,6 +328,11 @@ fn draw_gas(f: &mut Frame, app: &App, area: Rect) {
                 .percent(pct),
             parts[1],
         );
+    } else if !app.analytics_ok {
+        lines.push(Line::from(Span::styled(
+            " spend cap: analytics endpoints are outside this key's scope (MCP-only key) — runs feed falls back to per-workflow execution history",
+            Style::default().fg(Color::DarkGray),
+        )));
     } else {
         lines.push(Line::from(Span::styled(
             " spend cap: n/a",

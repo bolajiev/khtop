@@ -18,6 +18,7 @@ pub struct Dashboard {
     pub summary: Option<AnalyticsSummary>,
     pub spend: Option<SpendCap>,
     pub chains: Vec<Chain>,
+    pub analytics_ok: bool,
 }
 
 pub struct LogRow {
@@ -164,6 +165,7 @@ pub struct App {
     pub error: Option<String>,
     pub last_refresh: Option<Instant>,
     pub log_scroll: u16,
+    pub analytics_ok: bool,
 }
 
 impl App {
@@ -190,6 +192,7 @@ impl App {
             error: None,
             last_refresh: None,
             log_scroll: 0,
+            analytics_ok: true,
         }
     }
 
@@ -266,6 +269,7 @@ impl App {
     fn refresh_dashboard(&mut self, mtx: mpsc::Sender<Msg>) {
         let client = self.client.clone();
         let need_chains = self.chains.is_empty();
+        let analytics_ok = self.analytics_ok;
         tokio::spawn(async move {
             let res = async {
                 let chains = if need_chains {
@@ -273,16 +277,37 @@ impl App {
                 } else {
                     None
                 };
-                let runs = client.analytics_runs(50).await.map(|p| p.runs);
-                let workflows = client.list_workflows().await;
-                let spend = client.spend_cap().await.ok();
-                let summary = client.analytics_summary().await.ok();
+
+                let (runs, analytics_ok) = if analytics_ok {
+                    match client.analytics_runs(50).await {
+                        Ok(page) => (page.runs, true),
+                        Err(e) if crate::client::is_scope_error(&e) => {
+                            (client.fallback_runs().await, false)
+                        }
+                        Err(e) => return Err(e),
+                    }
+                } else {
+                    (client.fallback_runs().await, false)
+                };
+
+                let spend = if analytics_ok {
+                    client.spend_cap().await.ok()
+                } else {
+                    None
+                };
+                let summary = if analytics_ok {
+                    client.analytics_summary().await.ok()
+                } else {
+                    None
+                };
+                let workflows = client.list_workflows().await?;
                 Ok::<Dashboard, ApiError>(Dashboard {
-                    runs: runs?,
-                    workflows: workflows?,
+                    runs,
+                    workflows,
                     spend,
                     summary,
                     chains: chains.unwrap_or_default(),
+                    analytics_ok,
                 })
             }
             .await;
@@ -293,6 +318,7 @@ impl App {
     }
 
     fn on_dashboard(&mut self, d: Dashboard) {
+        self.analytics_ok = d.analytics_ok;
         self.runs = d.runs;
         if !d.workflows.is_empty() {
             self.workflows = d.workflows;
@@ -720,16 +746,29 @@ fn demo_amount() -> String {
 }
 
 pub async fn run_once(client: &KhClient) -> anyhow::Result<()> {
-    let runs = client.analytics_runs(50).await?;
     let workflows = client.list_workflows().await?;
-    let spend = client.spend_cap().await.ok();
-    let summary = client.analytics_summary().await.ok();
     let chains = client.chains().await?;
+    let (runs, analytics_ok) = match client.analytics_runs(50).await {
+        Ok(page) => (page.runs, true),
+        Err(e) if crate::client::is_scope_error(&e) => (client.fallback_runs().await, false),
+        Err(e) => return Err(e.into()),
+    };
+    let spend = if analytics_ok {
+        client.spend_cap().await.ok()
+    } else {
+        None
+    };
+    let summary = if analytics_ok {
+        client.analytics_summary().await.ok()
+    } else {
+        None
+    };
     let out = serde_json::json!({
+        "analytics_in_scope": analytics_ok,
         "workflows": workflows.len(),
         "workflow_names": workflows.iter().map(|w| w.name.clone()).collect::<Vec<_>>(),
-        "runs": runs.runs.len(),
-        "recent_runs": runs.runs.iter().take(5).map(|r| serde_json::json!({
+        "runs": runs.len(),
+        "recent_runs": runs.iter().take(5).map(|r| serde_json::json!({
             "id": r.id, "source": r.source, "status": r.status, "tx": r.transaction_hash,
         })).collect::<Vec<_>>(),
         "spend_cap": spend,

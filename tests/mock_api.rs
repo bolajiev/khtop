@@ -41,14 +41,27 @@ fn serve(
                     .unwrap()
                     .push(format!("{method} {path} auth={auth}"));
                 let route_key = format!("{method} {path}");
-                let body = routes
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .find(|(r, _)| r == &route_key)
-                    .map(|(_, b)| b.clone());
-                let (status, resp) = match body {
-                    Some(b) => ("200 OK".to_string(), b),
+                let matched = {
+                    let guard = routes.lock().unwrap();
+                    guard
+                        .iter()
+                        .find(|(r, _)| {
+                            r.strip_prefix("401 ")
+                                .map(|k| k == route_key)
+                                .unwrap_or(r == &route_key)
+                        })
+                        .cloned()
+                };
+                let (status, resp) = match &matched {
+                    Some((r, b)) => {
+                        let code = if r.starts_with("401 ") {
+                            "401 Unauthorized"
+                        } else {
+                            "200 OK"
+                        }
+                        .to_string();
+                        (code, b.clone())
+                    }
                     None => ("404 Not Found".to_string(), serde_json::json!({"error": "not_found", "detail": "no mock route", "request_id": "mock-1"}).to_string()),
                 };
                 let mut headers = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nX-RateLimit-Remaining: 97\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", resp.len());
@@ -305,4 +318,79 @@ async fn api_errors_surface_code_detail_request_id() {
     assert!(msg.contains("not_found"), "error code in message: {msg}");
     assert!(msg.contains("request_id"), "request id in message: {msg}");
     assert!(msg.contains("mock-1"), "request id value: {msg}");
+}
+
+#[tokio::test]
+async fn analytics_401_falls_back_to_workflow_executions() {
+    let route_map = vec![
+        (
+            "401 GET /analytics/runs?limit=50".into(),
+            serde_json::json!({"error": "Authentication required"}).to_string(),
+        ),
+        (
+            "GET /workflows".into(),
+            serde_json::json!([{"id": "wf_123", "name": "Auto-compounder", "nodes": [], "edges": []}]).to_string(),
+        ),
+        (
+            "GET /workflows/wf_123/executions".into(),
+            serde_json::json!([{
+                "id": "exec_555", "workflowId": "wf_123", "status": "error",
+                "input": {}, "output": null,
+                "startedAt": "2026-07-30T12:05:00Z", "completedAt": "2026-07-30T12:05:01Z",
+                "transactionHashes": [{"hash": "0xabc", "nodeId": "step-1", "nodeName": "Write"}]
+            }]).to_string(),
+        ),
+    ];
+    let expected = Arc::new(Mutex::new(Vec::new()));
+    let (client, _server) = client(route_map, expected.clone());
+
+    let err = client
+        .analytics_runs(50)
+        .await
+        .expect_err("analytics must error");
+    assert!(
+        khtop::client::is_scope_error(&err),
+        "401 must be detected as scope error: {err}"
+    );
+
+    let runs = client.fallback_runs().await;
+    assert_eq!(
+        runs.len(),
+        1,
+        "fallback aggregated the workflow execution: {runs:?}"
+    );
+    assert_eq!(runs[0].id, "exec_555");
+    assert_eq!(runs[0].status, "error");
+    assert_eq!(runs[0].workflow_name.as_deref(), Some("Auto-compounder"));
+    assert_eq!(runs[0].transaction_hash.as_deref(), Some("0xabc"));
+    assert_eq!(runs[0].source, "workflow");
+}
+
+#[tokio::test]
+async fn scope_error_detection() {
+    use khtop::client::{is_scope_error, ApiError};
+    let scope = ApiError::Api {
+        status: 401,
+        code: "Authentication required".into(),
+        detail: String::new(),
+        hint: None,
+        request_id: None,
+    };
+    let scope2 = ApiError::Api {
+        status: 403,
+        code: "insufficient_scope".into(),
+        detail: String::new(),
+        hint: None,
+        request_id: None,
+    };
+    let other = ApiError::Api {
+        status: 404,
+        code: "not_found".into(),
+        detail: String::new(),
+        hint: None,
+        request_id: None,
+    };
+    assert!(is_scope_error(&scope));
+    assert!(is_scope_error(&scope2));
+    assert!(!is_scope_error(&other));
 }
