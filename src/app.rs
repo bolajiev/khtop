@@ -113,6 +113,29 @@ pub struct LogsData {
     pub execution: Option<Value>,
 }
 
+/// A direct execution triggered from inside khtop this session. Tracked
+/// locally so it shows in the runs feed immediately even when the key's
+/// scope hides it from the analytics feed.
+#[derive(Debug, Clone)]
+pub struct TrackedRun {
+    pub id: String,
+    pub status: String,
+    pub tx_hash: Option<String>,
+    pub gas_wei: Option<String>,
+    pub created_at: Option<String>,
+}
+
+pub fn merge_runs(existing: Vec<Run>, extra: Vec<Run>) -> Vec<Run> {
+    let mut out = existing;
+    for r in extra {
+        if !out.iter().any(|x| x.id == r.id) {
+            out.push(r);
+        }
+    }
+    out.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    out
+}
+
 pub enum Msg {
     Dashboard(Result<Dashboard, String>),
     Logs(Result<LogsData, String>),
@@ -166,6 +189,7 @@ pub struct App {
     pub last_refresh: Option<Instant>,
     pub log_scroll: u16,
     pub analytics_ok: bool,
+    pub tracked: Vec<TrackedRun>,
 }
 
 impl App {
@@ -193,6 +217,7 @@ impl App {
             last_refresh: None,
             log_scroll: 0,
             analytics_ok: true,
+            tracked: Vec::new(),
         }
     }
 
@@ -270,6 +295,7 @@ impl App {
         let client = self.client.clone();
         let need_chains = self.chains.is_empty();
         let analytics_ok = self.analytics_ok;
+        let tracked = self.tracked.clone();
         tokio::spawn(async move {
             let res = async {
                 let chains = if need_chains {
@@ -278,7 +304,7 @@ impl App {
                     None
                 };
 
-                let (runs, analytics_ok) = if analytics_ok {
+                let (mut runs, analytics_ok) = if analytics_ok {
                     match client.analytics_runs(50).await {
                         Ok(page) => (page.runs, true),
                         Err(e) if crate::client::is_scope_error(&e) => {
@@ -289,6 +315,33 @@ impl App {
                 } else {
                     (client.fallback_runs().await, false)
                 };
+
+                let mut extra: Vec<Run> = Vec::new();
+                for t in tracked {
+                    if runs.iter().any(|r| r.id == t.id) {
+                        continue;
+                    }
+                    if util::terminal_status(&t.status) {
+                        continue;
+                    }
+                    if let Ok(ds) = client.direct_status(&t.id).await {
+                        extra.push(Run {
+                            id: ds.execution_id,
+                            source: "direct".into(),
+                            workflow_id: None,
+                            workflow_name: None,
+                            status: ds.status,
+                            created_at: ds.created_at,
+                            completed_at: ds.completed_at,
+                            duration_ms: None,
+                            r#type: ds.r#type,
+                            network: None,
+                            transaction_hash: ds.transaction_hash,
+                            gas_used_wei: ds.gas_used_wei,
+                        });
+                    }
+                }
+                runs = merge_runs(runs, extra);
 
                 let spend = if analytics_ok {
                     client.spend_cap().await.ok()
@@ -325,11 +378,20 @@ impl App {
         }
         self.spend = d.spend;
         self.summary = d.summary;
-        if !d.chains.is_empty() {
-            self.chains = d.chains;
-        }
         self.error = None;
         self.last_refresh = Some(Instant::now());
+        for t in self.tracked.iter_mut() {
+            if let Some(r) = self.runs.iter().find(|r| r.id == t.id) {
+                t.status = r.status.clone();
+                if let Some(h) = &r.transaction_hash {
+                    t.tx_hash = Some(h.clone());
+                }
+                if let Some(g) = &r.gas_used_wei {
+                    t.gas_wei = Some(g.clone());
+                }
+            }
+        }
+        self.prune_tracked();
         if let Some(wf) = self.selected_wf.clone() {
             if !self.workflows.iter().any(|w| w.id == wf) {
                 self.selected_wf = self.workflows.first().map(|w| w.id.clone());
@@ -340,6 +402,21 @@ impl App {
                 self.selected_run = self.runs.first().map(|r| r.id.clone());
             }
         }
+    }
+
+    fn prune_tracked(&mut self) {
+        let cutoff = chrono::Utc::now() - chrono::Duration::hours(1);
+        self.tracked.retain(|t| {
+            let terminal = util::terminal_status(&t.status);
+            let old = t
+                .created_at
+                .as_deref()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt < cutoff)
+                .unwrap_or(false);
+            !(terminal && old)
+        });
+        self.tracked.truncate(20);
     }
 
     fn poll_logs(&mut self, mtx: mpsc::Sender<Msg>) {
@@ -453,6 +530,15 @@ impl App {
                 Ok(r) => {
                     self.mode = Mode::Normal;
                     self.transfer = None;
+                    if !self.tracked.iter().any(|t| t.id == r.execution_id) {
+                        self.tracked.push(TrackedRun {
+                            id: r.execution_id.clone(),
+                            status: "pending".into(),
+                            tx_hash: None,
+                            gas_wei: None,
+                            created_at: Some(chrono::Utc::now().to_rfc3339()),
+                        });
+                    }
                     self.set_toast(format!(
                         "broadcast {} ({}) — tx incoming, watch the audit tail",
                         r.execution_id, r.status
@@ -838,4 +924,81 @@ pub async fn spike_transfer(client: &KhClient, simulate_only: bool) -> anyhow::R
         status.transaction_link.as_deref().unwrap_or("")
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn run(id: &str, created: Option<&str>) -> Run {
+        Run {
+            id: id.into(),
+            source: "workflow".into(),
+            workflow_id: None,
+            workflow_name: None,
+            status: "success".into(),
+            created_at: created.map(String::from),
+            completed_at: None,
+            duration_ms: None,
+            r#type: None,
+            network: None,
+            transaction_hash: None,
+            gas_used_wei: None,
+        }
+    }
+
+    #[test]
+    fn merge_dedups_and_sorts_desc() {
+        let existing = vec![run("a", Some("2026-07-30T12:00:00Z"))];
+        let extra = vec![
+            run("b", Some("2026-07-30T13:00:00Z")),
+            run("a", Some("2026-07-30T12:00:00Z")),
+            run("c", None),
+        ];
+        let merged = merge_runs(existing, extra);
+        let ids: Vec<&str> = merged.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["b", "a", "c"],
+            "dedup by id, newest first, missing timestamps last"
+        );
+        assert_eq!(merged.len(), 3);
+    }
+
+    #[test]
+    fn tracked_runs_pruned_when_terminal_and_old() {
+        let mut app = App::new(KhClient::with_base(
+            Arc::new("kh_test".into()),
+            "http://127.0.0.1:1".into(),
+        ));
+        let old = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
+        let fresh = chrono::Utc::now().to_rfc3339();
+        app.tracked = vec![
+            TrackedRun {
+                id: "t1".into(),
+                status: "completed".into(),
+                tx_hash: None,
+                gas_wei: None,
+                created_at: Some(old.clone()),
+            },
+            TrackedRun {
+                id: "t2".into(),
+                status: "running".into(),
+                tx_hash: None,
+                gas_wei: None,
+                created_at: Some(old),
+            },
+            TrackedRun {
+                id: "t3".into(),
+                status: "completed".into(),
+                tx_hash: None,
+                gas_wei: None,
+                created_at: Some(fresh),
+            },
+        ];
+        app.prune_tracked();
+        let ids: Vec<&str> = app.tracked.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["t2", "t3"], "only terminal+old entries pruned");
+    }
 }
