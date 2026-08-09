@@ -376,6 +376,9 @@ impl App {
         if !d.workflows.is_empty() {
             self.workflows = d.workflows;
         }
+        if !d.chains.is_empty() {
+            self.chains = d.chains;
+        }
         self.spend = d.spend;
         self.summary = d.summary;
         self.error = None;
@@ -469,7 +472,37 @@ impl App {
                 self.active_poll = None;
             }
         }
-        self.poll_logs(mtx.clone());
+        let client = self.client.clone();
+        let source = self
+            .runs
+            .iter()
+            .find(|r| r.id == run_id)
+            .map(|r| r.source.clone())
+            .unwrap_or_else(|| "workflow".into());
+        let id = run_id.to_string();
+        let tx = mtx.clone();
+        tokio::spawn(async move {
+            let res: Result<LogsData, String> = if source == "direct" {
+                client
+                    .step_logs(&id)
+                    .await
+                    .map(|s| LogsData {
+                        rows: s.steps.iter().map(LogRow::from_step).collect(),
+                        execution: None,
+                    })
+                    .map_err(|e| e.to_string())
+            } else {
+                client
+                    .execution_logs(&id)
+                    .await
+                    .map(|l| LogsData {
+                        rows: l.logs.iter().map(LogRow::from_log_entry).collect(),
+                        execution: l.execution,
+                    })
+                    .map_err(|e| e.to_string())
+            };
+            let _ = tx.send(Msg::Logs(res)).await;
+        });
     }
 
     fn on_msg(&mut self, msg: Msg) {

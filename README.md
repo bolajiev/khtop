@@ -29,10 +29,23 @@ project (Sepolia, org wallet `0xb80640aab9a0b123b2d56a3ad0cb1d11b129e00b`):
 |---|---|---|
 | `khtop --transfer` spike (0.0001 ETH, self-transfer) | `0x8eb57aa6...2ca9b4` | https://sepolia.etherscan.io/tx/0x8eb57aa69edce99aae83ce970c36ff59b01ffb23985d0f73b05794ef9c2ca9b4 |
 | direct API broadcast (0.0001 ETH, self-transfer) | `0x4665cde5...95a1e7` | https://sepolia.etherscan.io/tx/0x4665cde5c87c37d697e87a94a454f2d05bd614e696aa6a76de89c4dc0e95a1e7 |
+| broadcast from inside the TUI (recorded in `demo.cast`, 0.0001 ETH) | `0x8620e157...ce3eb10` | https://sepolia.etherscan.io/tx/0x8620e157459b0d7c85a5c7ca6f235176c030d968d9e8e9bc0ebef5746ce3eb10 |
 
 Both follow the documented safe first-write sequence: `simulate: true` dry-run
 first (gas estimate, revert check), then broadcast with an `Idempotency-Key`,
 then status polling for the on-chain proof.
+
+## Demo recording
+
+`demo.cast` (in the repo root) is an asciinema recording of the live dashboard:
+runs feed, audit tail on a failed run, and a transfer executed from inside the
+TUI (simulate → broadcast → the execution appearing in the feed). Replay with:
+
+```sh
+asciinema play demo.cast        # or install via: pip install asciinema
+```
+
+`scripts/demo_record.sh` reproduces the recording headlessly (tmux + asciinema).
 
 ## KeeperHub surfaces used
 
