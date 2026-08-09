@@ -11,7 +11,7 @@ use std::io;
 use std::sync::Arc;
 
 fn main() -> Result<()> {
-    dotenvy::dotenv().ok();
+    load_env();
     let mut args = std::env::args().skip(1);
     let mut once = false;
     let mut simulate = false;
@@ -66,6 +66,28 @@ fn main() -> Result<()> {
 
 fn print_usage() {
     eprintln!("usage: khtop [--once] [--simulate-transfer|--transfer [--recipient A --amount X --chain ID]]");
+}
+
+/// Load .env from the current directory first (dev/repo convention), then from
+/// ~/.config/khtop/.env or ~/.khtop.env so `khtop` works from any directory.
+fn load_env() {
+    dotenvy::dotenv().ok();
+    if std::env::var("KH_API_KEY").is_ok() {
+        return;
+    }
+    for p in ["~/.config/khtop/.env", "~/.khtop.env"] {
+        if let Some(expanded) = expand_home(p) {
+            let _ = dotenvy::from_path(&expanded);
+            if std::env::var("KH_API_KEY").is_ok() {
+                return;
+            }
+        }
+    }
+}
+
+fn expand_home(p: &str) -> Option<std::path::PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    Some(std::path::PathBuf::from(p.replacen("~", &home, 1)))
 }
 
 fn setup_terminal() -> Result<Terminal<CrosstermBackend<io::Stdout>>> {
