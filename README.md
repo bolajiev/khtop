@@ -20,6 +20,20 @@ question. khtop puts it on one screen:
 - **Wallet / gas** — daily spend cap gauge, org gas spend, success rate, chains,
   sponsorship status
 
+## Proof of execution
+
+Real transactions executed through KeeperHub's Direct Execution API from this
+project (Sepolia, org wallet `0xb80640aab9a0b123b2d56a3ad0cb1d11b129e00b`):
+
+| Execution | Transaction | Link |
+|---|---|---|
+| `khtop --transfer` spike (0.0001 ETH, self-transfer) | `0x8eb57aa6...2ca9b4` | https://sepolia.etherscan.io/tx/0x8eb57aa69edce99aae83ce970c36ff59b01ffb23985d0f73b05794ef9c2ca9b4 |
+| direct API broadcast (0.0001 ETH, self-transfer) | `0x4665cde5...95a1e7` | https://sepolia.etherscan.io/tx/0x4665cde5c87c37d697e87a94a454f2d05bd614e696aa6a76de89c4dc0e95a1e7 |
+
+Both follow the documented safe first-write sequence: `simulate: true` dry-run
+first (gas estimate, revert check), then broadcast with an `Idempotency-Key`,
+then status polling for the on-chain proof.
+
 ## KeeperHub surfaces used
 
 - **REST API** (`app.keeperhub.com/api`) — workflows, executions/logs,
