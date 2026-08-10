@@ -190,6 +190,8 @@ pub struct App {
     pub log_scroll: u16,
     pub analytics_ok: bool,
     pub tracked: Vec<TrackedRun>,
+    pub refreshing: bool,
+    pub log_polling: bool,
 }
 
 impl App {
@@ -218,6 +220,8 @@ impl App {
             log_scroll: 0,
             analytics_ok: true,
             tracked: Vec::new(),
+            refreshing: false,
+            log_polling: false,
         }
     }
 
@@ -292,6 +296,10 @@ impl App {
     }
 
     fn refresh_dashboard(&mut self, mtx: mpsc::Sender<Msg>) {
+        if self.refreshing {
+            return;
+        }
+        self.refreshing = true;
         let client = self.client.clone();
         let need_chains = self.chains.is_empty();
         let analytics_ok = self.analytics_ok;
@@ -399,11 +407,15 @@ impl App {
             if !self.workflows.iter().any(|w| w.id == wf) {
                 self.selected_wf = self.workflows.first().map(|w| w.id.clone());
             }
+        } else if !self.workflows.is_empty() {
+            self.selected_wf = self.workflows.first().map(|w| w.id.clone());
         }
         if let Some(run) = self.selected_run.clone() {
             if !self.runs.iter().any(|r| r.id == run) {
                 self.selected_run = self.runs.first().map(|r| r.id.clone());
             }
+        } else if !self.runs.is_empty() {
+            self.selected_run = self.runs.first().map(|r| r.id.clone());
         }
     }
 
@@ -423,6 +435,9 @@ impl App {
     }
 
     fn poll_logs(&mut self, mtx: mpsc::Sender<Msg>) {
+        if self.log_polling {
+            return;
+        }
         let Some(id) = self.active_poll.clone() else {
             return;
         };
@@ -434,6 +449,7 @@ impl App {
             self.active_poll = None;
             return;
         }
+        self.log_polling = true;
         let client = self.client.clone();
         let source = run.source.clone();
         tokio::spawn(async move {
@@ -507,11 +523,15 @@ impl App {
 
     fn on_msg(&mut self, msg: Msg) {
         match msg {
-            Msg::Dashboard(res) => match res {
-                Ok(d) => self.on_dashboard(d),
-                Err(e) => self.error = Some(e),
-            },
+            Msg::Dashboard(res) => {
+                self.refreshing = false;
+                match res {
+                    Ok(d) => self.on_dashboard(d),
+                    Err(e) => self.error = Some(e),
+                }
+            }
             Msg::Logs(res) => {
+                self.log_polling = false;
                 let id = self.log_run_id.clone();
                 match res {
                     Ok(l) => {
