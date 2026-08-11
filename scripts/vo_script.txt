@@ -1,0 +1,9 @@
+This is khtop — the terminal dashboard for KeeperHub. One screen, always on: your workflows, executions, and wallet, live.
+
+KeeperHub keeps your onchain agents alive — retries, gas handling, audit trails. But the only way to see any of it is the web app, or asking a chat plugin a question. khtop puts it all on one screen.
+
+Every run, every step: the trigger, the simulation, the submitted transaction, the gas used. And when a run fails, the error is right there. No digging. No guessing.
+
+And it executes onchain. Press t, enter an amount, and khtop simulates first — catching reverts before anything is broadcast. Confirm, and KeeperHub handles the rest: idempotent execution, gas handling, the full audit trail.
+
+Here's the transaction — live on Sepolia, real and linkable. khtop. The ops view your agents deserve.

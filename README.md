@@ -35,17 +35,29 @@ Both follow the documented safe first-write sequence: `simulate: true` dry-run
 first (gas estimate, revert check), then broadcast with an `Idempotency-Key`,
 then status polling for the on-chain proof.
 
-## Demo recording
+## Demo video
 
-`demo.cast` (in the repo root) is an asciinema recording of the live dashboard:
-runs feed, audit tail on a failed run, and a transfer executed from inside the
-TUI (simulate → broadcast → the execution appearing in the feed). Replay with:
+<video src="https://github.com/bolajiev/khtop/raw/main/khtop-demo.mp4" width="100%" controls></video>
+
+`khtop-demo.mp4` (repo root) — 58-second product demo: dark fintech style with
+voiceover, karaoke captions, real TUI screenshots, and a live Sepolia
+transaction. Rebuild it anytime:
 
 ```sh
-asciinema play demo.cast        # or install via: pip install asciinema
+cd demo-video
+npm install
+npm run render                # -> out/khtop-demo.mp4
 ```
 
-`scripts/demo_record.sh` reproduces the recording headlessly (tmux + asciinema).
+`demo.cast` (repo root) is an asciinema recording of the raw terminal flow
+(simulate → broadcast → execution appearing in the feed):
+
+```sh
+asciinema play demo.cast
+```
+
+`scripts/demo_record.sh` reproduces the recording headlessly (tmux + asciinema),
+`scripts/ansi2png.py` converts the ANSI captures to PNG screenshots.
 
 ## KeeperHub surfaces used
 
