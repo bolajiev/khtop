@@ -4,7 +4,7 @@
 with [Remotion](https://www.remotion.dev/): dark fintech style, voiceover,
 karaoke captions, real TUI screenshots, and a live onchain transaction.
 
-Rendered output: [`../khtop-demo.mp4`](../khtop-demo.mp4) (1920×1080, 30 fps, 58 s).
+Rendered output: `out/khtop-demo.mp4` (1920×1080, 30 fps, 58 s) — generated locally, not committed to the repo.
 
 ## Rebuild
 

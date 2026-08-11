@@ -3,3 +3,12 @@
 *.env
 .env.*
 !.env.example
+
+# internal / not for the public repo
+plan.md
+khtop.md
+AGENTS.md
+submission.md
+*.cast
+*.mp4
+scripts/demo_record.sh

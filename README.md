@@ -35,13 +35,11 @@ Both follow the documented safe first-write sequence: `simulate: true` dry-run
 first (gas estimate, revert check), then broadcast with an `Idempotency-Key`,
 then status polling for the on-chain proof.
 
-## Demo video
+## Demo video project
 
-<video src="https://github.com/bolajiev/khtop/raw/main/khtop-demo.mp4" width="100%" controls></video>
-
-`khtop-demo.mp4` (repo root) — 58-second product demo: dark fintech style with
-voiceover, karaoke captions, real TUI screenshots, and a live Sepolia
-transaction. Rebuild it anytime:
+`demo-video/` is a [Remotion](https://www.remotion.dev/) project that renders a
+58-second product demo (1920×1080, dark fintech style, voiceover, karaoke
+captions, real TUI screenshots, live Sepolia transaction):
 
 ```sh
 cd demo-video
@@ -49,15 +47,8 @@ npm install
 npm run render                # -> out/khtop-demo.mp4
 ```
 
-`demo.cast` (repo root) is an asciinema recording of the raw terminal flow
-(simulate → broadcast → execution appearing in the feed):
-
-```sh
-asciinema play demo.cast
-```
-
-`scripts/demo_record.sh` reproduces the recording headlessly (tmux + asciinema),
-`scripts/ansi2png.py` converts the ANSI captures to PNG screenshots.
+See `demo-video/README.md` for the scene timeline and how to regenerate the
+screenshots and voiceover (`scripts/ansi2png.py`, `scripts/vo_script.txt`).
 
 ## KeeperHub surfaces used
 
